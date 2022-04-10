@@ -165,6 +165,41 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
+    char **argv;
+    int pid;
+    int bg;
+    int builtin;        // builtin == 0: not builtin command, 1: "quit", 2: "job", 3: "bg" 4: "fg"
+
+    argv = malloc(sizeof(char*) * MAXARGS);
+    for (int i = 0; i < MAXARGS; i++) {
+        argv[i] = malloc(sizeof(char) * MAXLINE);
+    }
+
+    if ((bg = parseline(cmdline, argv))) {
+        if (fork() == 0) {
+            execv(argv[0], argv);
+        }
+    }
+    else {
+        if ((builtin = builtin_cmd(argv)) > 0) {
+            switch(builtin) {
+                case 1:
+                    exit(0);
+                case 2:
+                    listjobs(jobs);
+                    break;
+                case 3:
+                    break;
+                case 4:
+                    break;
+            }
+        }
+        else {
+            if (fork() == 0) {
+                execv(argv[0], argv);
+            }
+        }
+    }
     return;
 }
 
@@ -231,6 +266,18 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
+    if (strcmp(argv[0], "quit") == 0) {
+        return 1;
+    }
+    else if (strcmp(argv[0], "job") == 0) {
+        return 2;
+    }
+    else if (strcmp(argv[0], "bg") == 0) {
+        return 3;
+    }
+    else if (strcmp(argv[0], "fg") == 0) {
+        return 4;
+    }
     return 0;     /* not a builtin command */
 }
 
