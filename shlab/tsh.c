@@ -165,41 +165,67 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
+	sigset_t set, oldset;
     char **argv;
-    int pid;
+    pid_t pid;
+	int status;
     int bg;
     int builtin;        // builtin == 0: not builtin command, 1: "quit", 2: "job", 3: "bg" 4: "fg"
 
+	// empty signal sets
+	if(sigemptyset(&set) < 0) unix_error("sigemptyset error");
+	if(sigemptyset(&oldset) < 0) unix_error("sigemptyset error");
+
+	// parse cmd
     argv = malloc(sizeof(char*) * MAXARGS);
     for (int i = 0; i < MAXARGS; i++) {
         argv[i] = malloc(sizeof(char) * MAXLINE);
     }
+	bg = parseline(cmdline, argv);
 
-    if ((bg = parseline(cmdline, argv))) {
-        if (fork() == 0) {
-            execv(argv[0], argv);
-        }
-    }
-    else {
-        if ((builtin = builtin_cmd(argv)) > 0) {
-            switch(builtin) {
-                case 1:
-                    exit(0);
-                case 2:
-                    listjobs(jobs);
-                    break;
-                case 3:
-                    break;
-                case 4:
-                    break;
-            }
-        }
-        else {
-            if (fork() == 0) {
-                execv(argv[0], argv);
-            }
-        }
-    }
+	// run builtin cmd immediately
+	if ((builtin = builtin_cmd(argv)) > 0) {
+		switch(builtin){
+			case 1:
+				exit(0);
+			case 2:
+				break;
+			case 3:
+				break;
+			case 4:
+				break;
+		}
+		return;
+	}
+
+	// block signal
+	if(sigaddset(&set, SIGCHLD) < 0) unix_error("sigaddset error");
+	if(sigprocmask(SIG_BLOCK, &set, NULL) < 0) unix_error("sigprocmask error");
+
+	// fork
+	if ((pid = fork()) < 0) unix_error("fork error");
+
+	// child process
+	else if (pid == 0) {
+		if(sigprocmask(SIG_UNBLOCK, &set, &oldset) < 0) unix_error("sigprocmask error");
+		if(setpgid(0, 0) < 0) unix_error("setpgid error");
+		if(execve(argv[0], argv, NULL) < 0) unix_error("execve error");
+	}
+	
+	// parent process
+	else {
+		addjob(jobs, pid, bg, cmdline);
+		if(sigprocmask(SIG_UNBLOCK, &set, &oldset) < 0) unix_error("sigprocmask error");
+		
+		if (bg == 1) {
+			fprintf(stdout, "[%d] (%d) %s", pid2jid(pid), pid, cmdline);
+			return;
+		}
+		else {
+			waitpid(pid, &status, 0);
+			deletejob(jobs, pid);
+		}
+	}
     return;
 }
 
@@ -310,6 +336,7 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+	int status;
     return;
 }
 
