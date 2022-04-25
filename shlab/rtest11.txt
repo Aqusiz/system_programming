@@ -1,0 +1,19 @@
+./sdriver.pl -t trace11.txt -s ./tshref -a "-p"
+#
+# trace11.txt - Forward SIGINT to every process in foreground process group
+#
+tsh> ./mysplit 4
+Job [1] (3183356) terminated by signal 2
+tsh> /bin/ps a
+    PID TTY      STAT   TIME COMMAND
+    781 hvc0     Ss+    0:00 /sbin/agetty -o -p -- \u --keep-baud 115200,38400,9600 hvc0 vt220
+   1163 tty6     Ss+    0:00 /sbin/agetty -o -p -- \u --noclear tty6 linux
+   1166 tty1     Ss+    0:00 /sbin/agetty -o -p -- \u --noclear tty1 linux
+3176277 pts/2    Ss+    0:00 -bash
+3183106 pts/0    Ss     0:00 -bash
+3183127 pts/0    S+     0:00 sh test_all.sh
+3183351 pts/0    S+     0:00 make rtest11
+3183352 pts/0    S+     0:00 /bin/sh -c ./sdriver.pl -t trace11.txt -s ./tshref -a "-p"
+3183353 pts/0    S+     0:00 /usr/bin/perl ./sdriver.pl -t trace11.txt -s ./tshref -a -p
+3183354 pts/0    S+     0:00 ./tshref -p
+3183382 pts/0    R      0:00 /bin/ps a
