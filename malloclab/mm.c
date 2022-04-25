@@ -51,6 +51,7 @@
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 static char *heap_listp;
+static char *last_allocated;
 static void *coalesce(void *bp);
 static void *extend_heap(size_t words);
 static void *find_fit(size_t size);
@@ -71,6 +72,7 @@ int mm_init(void)
 
 	if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
 		return -1;
+	last_allocated = heap_listp;
     return 0;
 }
 
@@ -116,15 +118,39 @@ void *mm_malloc(size_t size)
 	if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
 		return NULL;
 	place(bp, newsize);
+	last_allocated = bp;
 	return bp;
 }
-
+/*
+// first-fit
 static void *find_fit(size_t size)
 {
 	char *bp = heap_listp;
 	while(GET_SIZE(HDRP(bp)) > 0) {
 		if (!GET_ALLOC(HDRP(bp)) && (size <= GET_SIZE(HDRP(bp))))
 			return bp;
+		bp = NEXT_BLKP(bp);
+	}
+	return NULL;
+}
+*/
+// next-fit
+static void *find_fit(size_t size)
+{
+	char *bp = last_allocated;
+	while(GET_SIZE(HDRP(bp)) > 0) {
+		if (!GET_ALLOC(HDRP(bp)) && (size <= GET_SIZE(HDRP(bp)))) {
+			last_allocated = bp;
+			return bp;
+		}
+		bp = NEXT_BLKP(bp);
+	}
+	bp = heap_listp;
+	while(bp < last_allocated) {
+		if (!GET_ALLOC(HDRP(bp)) && (size <= GET_SIZE(HDRP(bp)))) {
+			last_allocated = bp;
+			return bp;
+		}
 		bp = NEXT_BLKP(bp);
 	}
 	return NULL;
@@ -163,9 +189,7 @@ static void *coalesce(void *bp)
 	size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
 	size_t size = GET_SIZE(HDRP(bp));
 
-	if (prev_alloc && next_alloc) {
-		return bp;
-	}
+	if (prev_alloc && next_alloc) return bp;
 
 	else if (prev_alloc && !next_alloc) {
 		size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
@@ -187,6 +211,7 @@ static void *coalesce(void *bp)
 		PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
 		bp = PREV_BLKP(bp);
 	}
+	last_allocated = bp;
 	return bp;
 }
 
