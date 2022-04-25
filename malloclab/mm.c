@@ -64,10 +64,10 @@ int mm_init(void)
 {
 	if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
 		return -1;
-	PUT(heap_listp, 0);
-	PUT(heap_listp + (1*WSIZE), PACK(DSIZE, 1));
-	PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1));
-	PUT(heap_listp + (3*WSIZE), PACK(0, 1));
+	PUT(heap_listp, 0);								// alignment padding
+	PUT(heap_listp + (1*WSIZE), PACK(DSIZE, 1));	// prologue header
+	PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1));	// prologue footer
+	PUT(heap_listp + (3*WSIZE), PACK(0, 1));		// epilogue header
 	heap_listp += (2*WSIZE);
 	last_allocated = heap_listp;	// init for next fit
 
@@ -218,14 +218,28 @@ void *mm_realloc(void *ptr, size_t size)
 	void *oldptr = ptr;
     void *newptr;
     size_t copySize;
-    
-    newptr = mm_malloc(size);
-    if (newptr == NULL)
-      return NULL;
-    copySize = GET_SIZE(HDRP(oldptr));
+	size_t oldsize = GET_SIZE(HDRP(oldptr));
+	size_t newsize = ALIGN(size + SIZE_T_SIZE) + (2*WSIZE);
+	// when newsize is smaller than current size
+	if (newsize <= oldsize) {
+		// if the difference between newsize and oldsize is bigger than minimum block size
+		// then free remainder
+		if (oldsize - newsize > 2*DSIZE) {
+			PUT(HDRP(oldptr), PACK(newsize, 1));
+			PUT(FTRP(oldptr), PACK(newsize, 1));
+			PUT(HDRP(NEXT_BLKP(oldptr)), PACK(oldsize-newsize, 0));
+			PUT(FTRP(NEXT_BLKP(oldptr)), PACK(oldsize-newsize, 0));
+		}
+		return oldptr;
+	}
+
+	newptr = mm_malloc(size);
+	if (newptr == NULL)
+		return NULL;
+	copySize = GET_SIZE(HDRP(oldptr));
 	if (size < copySize)
-      copySize = size;
-    memcpy(newptr, oldptr, copySize);
-    mm_free(oldptr);
-    return newptr;
+		copySize = size;
+	memcpy(newptr, oldptr, copySize);
+	mm_free(oldptr);
+	return newptr;
 }
