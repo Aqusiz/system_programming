@@ -69,10 +69,10 @@ int mm_init(void)
 	PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1));
 	PUT(heap_listp + (3*WSIZE), PACK(0, 1));
 	heap_listp += (2*WSIZE);
+	last_allocated = heap_listp;	// init for next fit
 
 	if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
 		return -1;
-	last_allocated = heap_listp;
     return 0;
 }
 
@@ -100,15 +100,8 @@ void *mm_malloc(size_t size)
     int newsize = ALIGN(size + SIZE_T_SIZE);
 	int extendsize;
 	char *bp;
-    // void *p = mem_sbrk(newsize);
-    // if (p == (void *)-1)
-	// 	return NULL;
 	if (size == 0)
 		return NULL;
-    // else {
-        //*(size_t *)p = size;
-        //return (void *)((char *)p + SIZE_T_SIZE);
-    // }
 	if ((bp = find_fit(newsize)) != NULL) {
 		place(bp, newsize);
 		return bp;
@@ -138,6 +131,7 @@ static void *find_fit(size_t size)
 static void *find_fit(size_t size)
 {
 	char *bp = last_allocated;
+	// find fit from last allocated address
 	while(GET_SIZE(HDRP(bp)) > 0) {
 		if (!GET_ALLOC(HDRP(bp)) && (size <= GET_SIZE(HDRP(bp)))) {
 			last_allocated = bp;
@@ -145,6 +139,7 @@ static void *find_fit(size_t size)
 		}
 		bp = NEXT_BLKP(bp);
 	}
+	// cannot find fit -> find from first address to last allocated address
 	bp = heap_listp;
 	while(bp < last_allocated) {
 		if (!GET_ALLOC(HDRP(bp)) && (size <= GET_SIZE(HDRP(bp)))) {
