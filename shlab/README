@@ -20,3 +20,6 @@ mysplit.c	# Forks a child that spins for <n> seconds
 mystop.c        # Spins for <n> seconds and sends SIGTSTP to itself
 myint.c         # Spins for <n> seconds and sends SIGINT to itself
 
+
+# Make txt file to check difference between tsh and reftsh
+test_all.sh # $sh test_all.sh <- This command will make test[n].txt and rtest[n].txt
