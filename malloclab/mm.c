@@ -50,8 +50,8 @@
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
-static char *heap_listp;
-static char *last_allocated;
+static void *heap_listp;
+static void *last_allocated;
 static void *coalesce(void *bp);
 static void *extend_heap(size_t words);
 static void *find_fit(size_t size);
@@ -78,7 +78,7 @@ int mm_init(void)
 
 static void *extend_heap(size_t words)
 {
-	char *bp;
+	void *bp;
 	size_t size;
 
 	size = (words % 2) ? (words+1) * WSIZE : words * WSIZE;
@@ -99,7 +99,7 @@ void *mm_malloc(size_t size)
 {
     int newsize = ALIGN(size + SIZE_T_SIZE);
 	int extendsize;
-	char *bp;
+	void *bp;
 	if (size == 0)
 		return NULL;
 	if ((bp = find_fit(newsize)) != NULL) {
@@ -130,7 +130,7 @@ static void *find_fit(size_t size)
 // next-fit
 static void *find_fit(size_t size)
 {
-	char *bp = last_allocated;
+	void *bp = last_allocated;
 	// find fit from last allocated address
 	while(GET_SIZE(HDRP(bp)) > 0) {
 		if (!GET_ALLOC(HDRP(bp)) && (size <= GET_SIZE(HDRP(bp)))) {
@@ -164,6 +164,7 @@ static void place(void *bp, size_t size)
 		bp = NEXT_BLKP(bp);
 		PUT(HDRP(bp), PACK(blocksize - size, 0));
 		PUT(FTRP(bp), PACK(blocksize - size, 0));
+		coalesce(bp);
 	}
 }
 /*
@@ -219,17 +220,38 @@ void *mm_realloc(void *ptr, size_t size)
     void *newptr;
     size_t copySize;
 	size_t oldsize = GET_SIZE(HDRP(oldptr));
-	size_t newsize = ALIGN(size + SIZE_T_SIZE) + (2*WSIZE);
+	size_t newsize = ALIGN(size + SIZE_T_SIZE) + 2*DSIZE;
 	// when newsize is smaller than current size
 	if (newsize <= oldsize) {
 		// if the difference between newsize and oldsize is bigger than minimum block size
 		// then free remainder
-		if (oldsize - newsize > 2*DSIZE) {
+		if (oldsize - newsize > 0) {
 			PUT(HDRP(oldptr), PACK(newsize, 1));
 			PUT(FTRP(oldptr), PACK(newsize, 1));
 			PUT(HDRP(NEXT_BLKP(oldptr)), PACK(oldsize-newsize, 0));
 			PUT(FTRP(NEXT_BLKP(oldptr)), PACK(oldsize-newsize, 0));
+			coalesce(HDRP(NEXT_BLKP(oldptr)));
 		}
+		last_allocated = oldptr;
+		return oldptr;
+	}
+
+	int next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(oldptr)));
+	size_t blocksize = oldsize + GET_SIZE(HDRP(NEXT_BLKP(oldptr)));
+
+	if (!next_alloc && blocksize > newsize) {
+		if (blocksize - newsize < 2*DSIZE) {
+			PUT(HDRP(oldptr), PACK(blocksize, 1));
+			PUT(FTRP(oldptr), PACK(blocksize, 1));
+		}
+		else {
+			PUT(HDRP(oldptr), PACK(newsize, 1));
+			PUT(FTRP(oldptr), PACK(newsize, 1));
+			PUT(HDRP(NEXT_BLKP(oldptr)), PACK(blocksize - newsize, 0));
+			PUT(FTRP(NEXT_BLKP(oldptr)), PACK(blocksize - newsize, 0));
+			coalesce(NEXT_BLKP(oldptr));
+		}
+		last_allocated = oldptr;
 		return oldptr;
 	}
 
@@ -241,5 +263,6 @@ void *mm_realloc(void *ptr, size_t size)
 		copySize = size;
 	memcpy(newptr, oldptr, copySize);
 	mm_free(oldptr);
+	last_allocated = newptr;
 	return newptr;
 }
