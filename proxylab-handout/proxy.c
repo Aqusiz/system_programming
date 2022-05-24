@@ -103,12 +103,13 @@ void *handle_client(void *args) {
     hp = Gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
     haddrp = inet_ntoa(clientaddr.sin_addr);
     client_port = ntohs(clientaddr.sin_port);
-    printf("server connected to %s (%s), port %u\n", hp->h_name, haddrp, client_port);
+    printf("server connected to %s:%u (%s)\n", hp->h_name, client_port, haddrp);
 
     // Receive request from client
     initialize_struct(req);
     Rio_readinitb(&rp, connfd);
     while(Rio_readlineb(&rp, buf, MAXLINE) > 0) {
+        printf("%s", buf);
         if (strcmp(buf, "\r\n") == 0) break;
         if (strncmp(buf, "GET", 3) == 0) {
             parse_request(buf, req);
@@ -131,7 +132,8 @@ void *handle_client(void *args) {
     get_from_server(req, request, connfd);
 
     Close(connfd);
-    destruct_struct(req);
+    Free(req);
+    // destruct_struct(req);
     return NULL;
 }
 
