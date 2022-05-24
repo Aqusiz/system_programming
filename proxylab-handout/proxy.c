@@ -4,6 +4,7 @@
 /* Recommended max cache and object sizes */
 #define MAX_CACHE_SIZE 1049000
 #define MAX_OBJECT_SIZE 102400
+#define MAX_CACHE_ITEM 10
 
 /* You won't lose style points for including this long line in your code */
 static const char *user_agent_hdr = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 Firefox/10.0.3\r\n";
@@ -25,36 +26,63 @@ typedef struct {
 
 void *handle_client(void *args);
 void initialize_struct(Request *req);
+void destruct_struct(Request *req);
 void parse_request(char request[MAXLINE], Request *req);
 void parse_absolute(Request *req);
-// void parse_relative(Request *req);
 void parse_header(char header[MAXLINE], Request *req);
 void assemble_request(Request *req, char *reqeust);
-// int get_from_cache(Request *req, int clientfd);
 void get_from_server(Request *req, char request[MAXLINE], int clientfd);
-void close_wrapper(int fd);
-void print_full(char *string);
-void print_struct(Request *req);
+
+typedef struct {
+    char obj[MAX_OBJECT_SIZE];
+    char url[MAXLINE];
+    int LRU, valid, rc, wc;
+    sem_t wmutex, wcmutex, rcmutex, q;
+} CachedItem;
+
+typedef struct {
+    CachedItem item[10];
+} CacheList;
+
+CacheList cache;
+
+void cache_init();
+int find(char *uri);
+int evict();
+void LRU(int idx);
+void cache_uri(char *uri, char *buf);
+void read_lock(int idx);
+void read_unlock(int idx);
+void write_lock(int idx);
+void write_unlock(int idx);
 
 int main(int argc, char** argv)
 {
+    if (argc != 2 || atoi(argv[1]) == 0) {
+        printf("./proxy [port]\n");
+        exit(0);
+    }
     int listenfd;
     pthread_t tid;
     int clientlen = sizeof(struct sockaddr_in);
 
     printf("%s", user_agent_hdr);
+    cache_init();
     listenfd = Open_listenfd(argv[1]);
-    
+
     while(1) {
-        int *connfdp = malloc(sizeof(int *));
+        // accept connection and make client address
+        int *connfdp = malloc(sizeof(int));
         struct sockaddr_in *clientaddrp = malloc(sizeof(struct sockaddr_in *));
         *connfdp = accept(listenfd, (SA *)clientaddrp, (socklen_t *)&clientlen);
-        Thread_args *args = malloc(sizeof(Thread_args *));
+        // pass connfd and client address to thread as arguments
+        Thread_args *args = malloc(sizeof(Thread_args));
         args->connfdp = connfdp;
         args->clientaddrp = clientaddrp;
         pthread_create(&tid, NULL, handle_client, (void *)args);
     }
 
+    Close(listenfd);
     return 0;
 }
 
@@ -79,10 +107,8 @@ void *handle_client(void *args) {
 
     // Receive request from client
     initialize_struct(req);
-    printf("%s\n", req->port);
     Rio_readinitb(&rp, connfd);
     while(Rio_readlineb(&rp, buf, MAXLINE) > 0) {
-        printf("%s", buf);
         if (strcmp(buf, "\r\n") == 0) break;
         if (strncmp(buf, "GET", 3) == 0) {
             parse_request(buf, req);
@@ -93,12 +119,19 @@ void *handle_client(void *args) {
     }
     parse_absolute(req);
 
-    printf("after parsing\nmethod: %s, hostname: %s, uri: %s, Proxy-Connection: %s", req->method, req->hostname, req->uri, req->proxy_connection);
-    printf("port: %s, path: %s\n", req->port, req->path);
+    // find cache memory and if exist, forward it to client
+    int idx;
+    if ((idx = find(req->uri)) != -1) {
+        Rio_writen(connfd, cache.item[idx].obj, strlen(cache.item[idx].obj));
+        LRU(idx);
+        return NULL;
+    }
 
     // Send request to end server and forward response
     get_from_server(req, request, connfd);
 
+    Close(connfd);
+    destruct_struct(req);
     return NULL;
 }
 
@@ -112,14 +145,25 @@ void initialize_struct(Request *req) {
     req->user_agent_hdr = (char *) malloc(MAXLINE);
 }
 
+void destruct_struct(Request *req) {
+    Free(req->hostname);
+    Free(req->method);
+    Free(req->path);
+    Free(req->port);
+    Free(req->proxy_connection);
+    Free(req->uri);
+    Free(req->user_agent_hdr);
+    Free(req);
+}
+
 void parse_request(char request[MAXLINE], Request *req) {
     char temp[MAXLINE];
+    char *token;
     strcpy(temp, request);
-
     strcpy(req->method, strtok(temp, " "));
-    printf("parse method: %s\n", req->method);
-    strcpy(req->uri, strtok(NULL, " ")+7);
-    printf("parse URI: %s\n", req->uri);
+    token = strtok(NULL, " ");
+    if (strncmp(token, "http://", 7) == 0) token += 7;  // remove "http://"
+    strcpy(req->uri, token);
 }
 
 void parse_header(char header[MAXLINE], Request *req) {
@@ -128,17 +172,14 @@ void parse_header(char header[MAXLINE], Request *req) {
     strcpy(temp, header);
 
     token = strtok(temp, ": ");
-    printf("parse header: %s\n", token);
     if (strcmp(token, "Host") == 0) {
         token = strtok(NULL, " ");
         token[strlen(token)-2] = '\0';
         strcpy(req->hostname, token);
-        printf("Host: %s\n", req->hostname);
     }
     else if (strcmp(token, "User-Agent") == 0) {
         token = strtok(NULL, " ");
         strcpy(req->user_agent_hdr, token);
-        printf("User-Agent: %s", req->user_agent_hdr);
     }
     else if (strcmp(token, "Accept") == 0) {
         return;
@@ -146,7 +187,6 @@ void parse_header(char header[MAXLINE], Request *req) {
     else if (strcmp(token, "Proxy-Connection") == 0) {
         token = strtok(NULL, " ");
         strcpy(req->proxy_connection, token);
-        printf("Proxy-Connection: %s", req->proxy_connection);
     }
 }
 
@@ -155,19 +195,13 @@ void parse_absolute(Request *req) {
     char *token;
     char *p;
     strcpy(temp, req->uri);
-    printf("temp: %s\n", temp);
     token = strtok(temp, "/");
-    printf("token: %s\n", token);
     if ((p = strchr(token, ':')) != NULL) {
-        printf("%s\n", p);
         strcpy(req->port, p+1);
-        printf("port: %s\n", req->port);
     }
     token = strtok(NULL, " ");
-    printf("token: %s\n", token);
     strcpy(temp, "/");
     strcpy(req->path, strcat(temp, token));
-    printf("path: %s\n", req->path);
 }
 
 void get_from_server(Request *req, char request[MAXLINE], int clientfd) {
@@ -196,9 +230,125 @@ void get_from_server(Request *req, char request[MAXLINE], int clientfd) {
     int buf_size = 0;
     while((n = Rio_readlineb(&rp, buf, MAXLINE)) != 0) {
         buf_size += n;
-        if(buf_size < MAX_OBJECT_SIZE) strncat(cbuf, buf, n); // !
+        if(buf_size < MAX_OBJECT_SIZE) strncat(cbuf, buf, n);
         Rio_writen(clientfd, buf, n);
     }
-
+    if(buf_size < MAX_OBJECT_SIZE) cache_uri(req->uri, cbuf);
     Close(serverfd);
+}
+
+void cache_init() {
+    for (int i = 0; i < MAX_CACHE_ITEM; i++) {
+        CachedItem *item = &cache.item[i];
+        item->LRU = 0;
+        item->valid = 1;
+        item->rc = 0;
+        item->wc = 0;
+        Sem_init(&item->wmutex, 0, 1);
+        Sem_init(&item->wcmutex, 0, 1);
+        Sem_init(&item->rcmutex, 0, 1);
+        Sem_init(&item->q, 0, 1);
+    }
+}
+
+int find(char *uri) {
+    int i;
+    for (i = 0; i < MAX_CACHE_ITEM; i++) {
+        read_lock(i);
+        if (!cache.item[i].valid && (strcmp(uri, cache.item[i].url) == 0)) break;
+        read_unlock(i);
+    }
+
+    if (i >= MAX_CACHE_ITEM) return -1;
+    return i;
+}
+
+int evict() {
+    int minidx = 0;
+
+    for (int i = 0; i < MAX_CACHE_ITEM; i++) {
+        read_lock(i);
+        CachedItem *item = &cache.item[i];
+        if (item->valid) {
+            minidx = i;
+            read_unlock(i);
+            return minidx;
+        }
+        if (item->LRU < cache.item[minidx].LRU) minidx = i;
+        read_unlock(i);
+    }
+    return minidx;
+}
+
+void LRU(int idx) {
+    write_lock(idx);
+    cache.item[idx].LRU = 8192;
+    write_unlock(idx);
+
+    for (int i = 0; i < 10; i++) {
+        if (i == idx) continue;
+        write_lock(i);
+        if(!cache.item[i].valid && i != idx) cache.item[i].LRU--;
+        write_unlock(i);
+    }
+}
+
+void cache_uri(char *uri, char *buf) {
+    int idx = evict();
+    write_lock(idx);
+    CachedItem *item = &cache.item[idx];
+    strcpy(item->obj, buf);
+    strcpy(item->url, uri);
+    item->valid = 0;
+    write_unlock(idx);
+
+    LRU(idx);
+}
+
+void read_lock(int idx) {
+    CachedItem *item = &cache.item[idx];
+
+    P(&item->q);
+    P(&item->rcmutex);
+    item->rc += 1;
+
+    if (item->rc == 1) P(&item->wmutex);
+
+    V(&item->rcmutex);
+    V(&item->q);
+}
+
+void read_unlock(int idx) {
+    CachedItem *item = &cache.item[idx];
+
+    P(&item->rcmutex);
+    item->rc -= 1;
+
+    if (item->rc == 0) V(&item->wmutex);
+
+    V(&item->rcmutex);
+}
+
+void write_lock(int idx) {
+    CachedItem *item = &cache.item[idx];
+
+    P(&item->wcmutex);
+    item->wc += 1;
+
+    if(item->wc == 1) P(&item->q);
+
+    V(&item->wcmutex);
+    P(&item->wmutex);
+}
+
+void write_unlock(int idx) {
+    CachedItem *item = &cache.item[idx];
+
+    V(&item->wmutex);
+    P(&item->wcmutex);
+    item->wc -= 1;
+
+    if (item->wc == 0) V(&item->q);
+
+    V(&item->wcmutex);
 }
