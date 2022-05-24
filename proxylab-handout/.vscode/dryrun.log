@@ -1,4 +1,4 @@
-make --dry-run --always-make --keep-going --print-directory
+make --dry-run --keep-going --print-directory
 make: Entering directory '/home/2017-16140/system_programming/proxylab-handout'
 gcc -g -Wall -c proxy.c
 gcc -g -Wall -c csapp.c

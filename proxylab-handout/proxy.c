@@ -74,7 +74,10 @@ int main(int argc, char** argv)
         // accept connection and make client address
         int *connfdp = malloc(sizeof(int));
         struct sockaddr_in *clientaddrp = malloc(sizeof(struct sockaddr_in *));
-        *connfdp = accept(listenfd, (SA *)clientaddrp, (socklen_t *)&clientlen);
+        if ((*connfdp = accept(listenfd, (SA *)clientaddrp, (socklen_t *)&clientlen)) < 0) {
+            printf("Connection error.\n");
+            continue;
+        };
         // pass connfd and client address to thread as arguments
         Thread_args *args = malloc(sizeof(Thread_args));
         args->connfdp = connfdp;
@@ -100,8 +103,14 @@ void *handle_client(void *args) {
     Pthread_detach(pthread_self());
     Free(p->connfdp);
 
-    hp = Gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
-    haddrp = inet_ntoa(clientaddr.sin_addr);
+    if ((hp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET)) == NULL) {
+        printf("gethostbyaddr error\n");
+        return NULL;
+    }
+    if ((haddrp = inet_ntoa(clientaddr.sin_addr)) < 0) {
+        printf("inet_ntoa error\n");
+        return NULL;
+    }
     client_port = ntohs(clientaddr.sin_port);
     printf("server connected to %s:%u (%s)\n", hp->h_name, client_port, haddrp);
 
@@ -120,6 +129,7 @@ void *handle_client(void *args) {
     }
     parse_absolute(req);
 
+    printf("%s %s %s\n", req->method, req->hostname, req->uri);
     // find cache memory and if exist, forward it to client
     int idx;
     if ((idx = find(req->uri)) != -1) {
@@ -198,12 +208,20 @@ void parse_absolute(Request *req) {
     char *p;
     strcpy(temp, req->uri);
     token = strtok(temp, "/");
+    printf("%s\n", token);
     if ((p = strchr(token, ':')) != NULL) {
         strcpy(req->port, p+1);
     }
-    token = strtok(NULL, " ");
-    strcpy(temp, "/");
-    strcpy(req->path, strcat(temp, token));
+
+    if ((token = strtok(NULL, " ")) != NULL) {
+        strcpy(temp, "/");
+        strcpy(req->path, strcat(temp, token));
+    }
+    else {
+        p = malloc(MAXLINE);
+        strcpy(p, "http://");
+        strcpy(req->path, strcat(p, req->uri));
+    }
 }
 
 void get_from_server(Request *req, char request[MAXLINE], int clientfd) {

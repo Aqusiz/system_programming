@@ -6,7 +6,7 @@ make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Tue May 24 00:10:54 2022
+# Make data base, printed on Tue May 24 07:10:48 2022
 
 # Variables
 
@@ -57,7 +57,7 @@ LESSOPEN = | /usr/bin/lesspipe %s
 # environment
 VSCODE_CWD = /home/2017-16140
 # environment
-SSH_CONNECTION = 147.47.22.72 53469 147.46.241.75 22
+SSH_CONNECTION = 147.46.113.63 54113 147.46.241.75 22
 # environment
 PATH = /home/2017-16140/.vscode-server/bin/c3511e6c69bb39013c4a4b7b9566ec1ca73fc4d5/bin/remote-cli:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 # environment
@@ -65,7 +65,7 @@ XDG_RUNTIME_DIR = /run/user/1001
 # environment
 VSCODE_LOG_STACK = false
 # environment
-VSCODE_IPC_HOOK_CLI = /run/user/1001/vscode-ipc-25e2ff88-0f8e-4f23-9a4d-42defdd098fd.sock
+VSCODE_IPC_HOOK_CLI = /run/user/1001/vscode-ipc-7565310d-8539-41ce-886c-e93ad1636643.sock
 # makefile (from 'Makefile', line 9)
 LDFLAGS = -lpthread
 # default
@@ -109,7 +109,7 @@ SHLVL = 1
 # makefile (from 'Makefile', line 7)
 CC = gcc
 # environment
-XDG_SESSION_ID = 4840
+XDG_SESSION_ID = 4943
 # environment
 USER = 2017-16140
 # makefile
@@ -127,7 +127,7 @@ MAKEFLAGS = pqrR
 # environment
 MFLAGS = -pqrR
 # environment
-SSH_CLIENT = 147.47.22.72 53469 22
+SSH_CLIENT = 147.46.113.63 54113 22
 # automatic
 +D = $(patsubst %/,%,$(dir $+))
 # environment
@@ -159,7 +159,7 @@ MOTD_SHOWN = pam
 # makefile (from 'Makefile', line 10)
 STUNO = 2017-16140
 # variable set hash-table stats:
-# Load=74/1024=7%, Rehash=0, Collisions=9/99=9%
+# Load=74/1024=7%, Rehash=0, Collisions=9/104=9%
 
 # Pattern-specific Variable Values
 
@@ -167,9 +167,9 @@ STUNO = 2017-16140
 
 # Directories
 
-# . (device 51714, inode 5767480): 19 files, no impossibilities.
+# . (device 51714, inode 5767480): 16 files, no impossibilities.
 
-# 19 files, no impossibilities in 1 directories.
+# 16 files, no impossibilities in 1 directories.
 
 # Implicit Rules
 
@@ -182,43 +182,71 @@ handin:
 #  Modification time never checked.
 #  File has not been updated.
 #  recipe to execute (from 'Makefile', line 26):
-	(make clean; cd ..; tar cvf $(STUNO)-proxylab-handin.tar proxylab-handout --exclude tiny --exclude nop-server.py --exclude proxy --exclude driver.sh --exclude port-for-user.pl --exclude free-port.sh --exclude ".*")
+	(make clean; cd ..; tar cvf $(STUNO)-proxylab-handin.tar --exclude tiny --exclude nop-server.py --exclude proxy --exclude driver.sh --exclude port-for-user.pl --exclude free-port.sh --exclude ".*" proxylab-handout)
 
 all: proxy
 #  Command line target.
 #  Implicit rule search has been done.
 #  File does not exist.
 #  File has been updated.
-#  Successfully updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/5=0%
+
+# Not a target:
+.SUFFIXES:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 # Not a target:
 Makefile:
 #  Implicit rule search has been done.
-#  Last modified 2022-05-19 16:40:34.591740214
+#  Last modified 2022-05-24 06:49:45.200936208
 #  File has been updated.
 #  Successfully updated.
 
 proxy.o: proxy.c csapp.h
 #  Implicit rule search has not been done.
-#  Last modified 2022-05-23 16:45:56.177462184
+#  Implicit/static pattern stem: ''
+#  File does not exist.
 #  File has been updated.
-#  Successfully updated.
+#  Needs to be updated (-q is set).
+# automatic
+# @ := proxy.o
+# automatic
+# % := 
+# automatic
+# * := 
+# automatic
+# + := proxy.c csapp.h
+# automatic
+# | := 
+# automatic
+# < := proxy.c
+# automatic
+# ^ := proxy.c csapp.h
+# automatic
+# ? := proxy.c csapp.h
+# variable set hash-table stats:
+# Load=8/32=25%, Rehash=0, Collisions=1/13=8%
 #  recipe to execute (from 'Makefile', line 18):
 	$(CC) $(CFLAGS) -c proxy.c
 
 proxy: proxy.o csapp.o
 #  Implicit rule search has not been done.
-#  Last modified 2022-05-23 16:45:56.205461622
+#  File does not exist.
 #  File has been updated.
-#  Successfully updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/5=0%
 #  recipe to execute (from 'Makefile', line 21):
 	$(CC) $(CFLAGS) proxy.o csapp.o -o proxy $(LDFLAGS)
 
 csapp.o: csapp.c csapp.h
 #  Implicit rule search has not been done.
-#  Last modified 2022-05-20 06:48:10.377417031
-#  File has been updated.
-#  Successfully updated.
+#  Modification time never checked.
+#  File has not been updated.
 #  recipe to execute (from 'Makefile', line 15):
 	$(CC) $(CFLAGS) -c csapp.c
 
@@ -231,16 +259,15 @@ csapp.o: csapp.c csapp.h
 # Not a target:
 proxy.c:
 #  Implicit rule search has been done.
-#  Last modified 2022-05-23 16:45:48.489616963
+#  Last modified 2022-05-24 06:38:40.004895622
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 csapp.c:
-#  Implicit rule search has been done.
-#  Last modified 2022-05-20 06:47:12.501522794
-#  File has been updated.
-#  Successfully updated.
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
 
 clean:
 #  Implicit rule search has not been done.
@@ -252,12 +279,13 @@ clean:
 # Not a target:
 csapp.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-19 16:36:18.33865113
 #  File has been updated.
 #  Successfully updated.
 
 # files hash-table stats:
-# Load=12/1024=1%, Rehash=0, Collisions=0/31=0%
+# Load=12/1024=1%, Rehash=0, Collisions=0/32=0%
 # VPATH Search Paths
 
 # No 'vpath' search paths.
@@ -267,9 +295,9 @@ csapp.h:
 # strcache buffers: 1 (0) / strings = 26 / storage = 225 B / avg = 8 B
 # current buf: size = 8162 B / used = 225 B / count = 26 / avg = 8 B
 
-# strcache performance: lookups = 47 / hit rate = 44%
+# strcache performance: lookups = 45 / hit rate = 42%
 # hash-table stats:
-# Load=26/8192=0%, Rehash=0, Collisions=1/47=2%
-# Finished Make data base on Tue May 24 00:10:54 2022
+# Load=26/8192=0%, Rehash=0, Collisions=1/45=2%
+# Finished Make data base on Tue May 24 07:10:48 2022
 
  
